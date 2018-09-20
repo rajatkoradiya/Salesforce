@@ -1,0 +1,8 @@
+<design:component>
+	<design:attribute name="objectAPIName" label="Object API Name" />
+    <design:attribute name="fieldLabel" label="Field Label" />
+    <design:attribute name="fieldAPIName" label="Field API Name" />
+    <design:attribute name="recordTypeDeveloperName" label="Record Type Developer Name" />
+    <design:attribute name="selectedValue" label="Selected Value" />
+    <design:attribute name="required" label="Required" />
+</design:component>

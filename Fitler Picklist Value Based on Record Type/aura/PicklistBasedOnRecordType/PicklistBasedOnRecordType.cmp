@@ -1,0 +1,24 @@
+<aura:component implements="lightning:availableForFlowScreens,force:appHostable,flexipage:availableForAllPageTypes,forceCommunity:availableForAllPageTypes" 
+                access="public" controller="PicklistBasedOnRecordTypeController">
+    
+    <aura:handler name="init" value="{!this}" action="{!c.doInit}" />
+    
+    <!-- input attribute  -->
+    <aura:attribute name="objectAPIName" type="String" access="public" description="API name of object" />
+    <aura:attribute name="fieldAPIName" type="String" access="public" description="API name of field" />
+    <aura:attribute name="fieldLabel" type="String" access="public" description="Label of field" />
+    <aura:attribute name="recordTypeDeveloperName" type="String" access="public" description="Developer name of Record Type of object" />
+    <aura:attribute name="required" type="Boolean" default="false" access="public" description="Picklist is required or not" />
+    
+    <!-- output attribute  -->
+    <aura:attribute name="selectedValue" type="String" access="public" description="Selected picklist value" />
+    
+    <aura:attribute name="pickListOptions" type="object[]" access="public" description="List of picklist values" />
+    
+    <lightning:select aura:id="picklist" name="pickListValues" label="{!v.fieldLabel}" required="{!v.required}" value="{!v.selectedValue}">
+		<aura:iteration var="option" items="{! v.pickListOptions }">
+            <option value="{!option.value}">{!option.label}</option>
+        </aura:iteration>
+    </lightning:select>
+    
+</aura:component>
