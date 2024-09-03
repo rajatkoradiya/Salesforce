@@ -1,0 +1,276 @@
+Renew the asset from order using conga cpq APIs
+
+Steps:
+- Clone original order
+- Create cart
+- Renew asset line items
+- Reprice cart
+- Sync cart
+- Accept Order
+- Activate order
+
+--------------------------
+--------------------------
+Sample code:
+
+public with sharing class AssetRenewalFromOrderService {
+    public static void renewOrder(Id originalOrderId){
+        //get the order items
+        list<Id> assetIds = new list<Id>();
+        Apttus_Config2__OrderLineItem__c[] orderItems = [select id, Apttus_Config2__AssetLineItemId__c from Apttus_Config2__OrderLineItem__c where Apttus_Config2__OrderId__c = :originalOrderId];
+        for(Apttus_Config2__OrderLineItem__c oi : orderItems){
+            assetIds.add(oi.Apttus_Config2__AssetLineItemId__c);
+        }
+        //Id orderId = createOrder('001In000004hnZgIAI', 'a581y000000tD9yAAE');
+        
+        
+        //create order start
+        /*Apttus_Config2.CPQStruct.CreateOrderRequestDO request1 = new Apttus_Config2.CPQStruct.CreateOrderRequestDO();
+        request1.AccountId = '001In000004hnZgIAI';
+        request1.PriceListId = 'a581y000000tD9yAAE';    
+        request1.PricingDate = Datetime.now();
+         
+        Apttus_Config2.CPQStruct.CreateOrderResponseDO result1 = Apttus_Config2.OrderWebService.createOrder(request1);
+        Id orderId = result1.OrderSO.Id;
+        system.debug(logginglevel.ERROR, '*** orderId : ' + orderId);
+        
+        //update the order type to renewal order
+        Apttus_Config2__Order__c orderRecord = [select id, Apttus_Config2__Type__c, Apttus_Config2__Description__c from Apttus_Config2__Order__c where Id = :orderId limit 1];
+        orderRecord.Apttus_Config2__Type__c = 'Renewal';
+        orderRecord.Apttus_Config2__Description__c = 'Renewal';
+        update orderRecord;*/
+        
+        Apttus_Config2__Order__c orderRecord = cloneOrder('a50In0000004CgJIAU');
+        Id orderId = orderRecord.Id;
+        system.debug(logginglevel.ERROR, '*** orderId : ' + orderId);
+        //create order end
+        
+        //create cart start
+        Id cartId = createCart(orderId);
+        system.debug(logginglevel.ERROR, '*** cartId : ' + cartId);
+        //create cart end
+        
+        //renew asset start
+        Apttus_Config2.CPQStruct.RenewAssetsRequestDO request = new Apttus_Config2.CPQStruct.RenewAssetsRequestDO();
+        //request.RenewEndDate = Date.newInstance(2025, 09, 01);
+        request.RenewTerm = 1;
+        request.AssetIds = assetIds;
+        request.CartId = cartId;
+        Apttus_Config2.CPQStruct.RenewAssetsResponseDO response = Apttus_Config2.AssetService.renewAssets(request);
+        system.debug(logginglevel.ERROR, '*** response : ' + response);
+        //renew asset end
+        
+        //reprice cart start
+        Apttus_CPQApi.CPQ.UpdatePriceRequestDO priceReqDO = new Apttus_CPQApi.CPQ.UpdatePriceRequestDO();
+		priceReqDO.CartId = cartId;
+        Apttus_CPQApi.CPQ.UpdatePriceResponseDO priceRespDO = Apttus_CPQApi.CPQWebService.updatePriceForCart(priceReqDO);
+        system.debug(logginglevel.ERROR, '*** priceRespDO : ' + priceRespDO);
+        //reprice cart end
+        
+        //synchronize the cart start
+        Apttus_Config2.CPQStruct.SynchronizeCartRequestDO request2 = new Apttus_Config2.CPQStruct.SynchronizeCartRequestDO();
+        request2.CartId = cartId;
+        Apttus_Config2.CPQStruct.SynchronizeCartResponseDO result2 = Apttus_Config2.OrderWebService.synchronizeCart(request2);
+        system.debug(logginglevel.ERROR, '*** result2 : ' + result2);
+        //synchronize the cart end
+        
+        //accept order start
+        /*Apttus_Config2.CPQStruct.AcceptOrderRequestDO request3 = new Apttus_Config2.CPQStruct.AcceptOrderRequestDO();
+        request3.OrderId = orderId;
+        Apttus_Config2.CPQStruct.AcceptOrderResponseDO response3 = Apttus_Config2.OrderWebService.acceptOrder(request3);
+        system.debug(logginglevel.ERROR, '*** response3 : ' + response3);*/
+        //accept order end
+    }
+
+    public static Id createOrder(Id accountId, Id priceListId) {
+        // Create the request
+        Apttus_Config2.CPQStruct.CreateOrderRequestDO request = new Apttus_Config2.CPQStruct.CreateOrderRequestDO();
+        // Add request parameters
+        request.AccountId = accountId;
+        request.PriceListId = priceListId;
+        request.PricingDate = Datetime.now();
+
+        // Create a new order
+        Apttus_Config2.CPQStruct.CreateOrderResponseDO result = Apttus_Config2.OrderWebService.createOrder(request);
+
+        return result.OrderSO.Id;
+    }
+
+    public static Id createCart(Id orderId) {
+        Id cartId = null;
+        if(String.isNotBlank(orderId)) {
+            
+            List<Apttus_Config2.Property> configProps = new List<Apttus_Config2.Property>();
+            Apttus_Config2.Property prop = new Apttus_Config2.Property();
+            prop.Name = 'useAdvancedApproval';
+            prop.Value = 'false';
+            configProps.add(prop);
+            prop = new Apttus_Config2.Property(); 
+            prop.Name = 'useDealOptimizer'; 
+            prop.Value = 'false'; 
+            configProps.add(prop);
+            
+            // Create the request
+            Apttus_Config2.CPQStruct.CreateCartRequestDO request = new Apttus_Config2.CPQStruct.CreateCartRequestDO();
+            // Add request parameters
+            request.OrderId = orderId;
+            //request.Properties.addAll(configProps);
+            // Create a new cart for Order
+            Apttus_Config2.CPQStruct.CreateCartResponseDO result =
+            Apttus_Config2.OrderWebService.createCart(request);
+            // Get the cart Id
+            cartId = result.CartId; 
+        } else {
+            //invalid order id
+        }
+        
+        return cartId;
+
+    }
+    
+    public static Apttus_Config2__Order__c cloneOrder(Id orderId) {
+        // Fetch the existing order record using the provided order ID
+        Apttus_Config2__Order__c existingOrder = [SELECT Id,
+                                                  Apttus_Config2__AutoActivateOrder__c,
+                                                  Apttus_Config2__BillingPreferenceId__c,
+                                                  Apttus_Config2__BillToAccountId__c,
+                                                  Apttus_Config2__PriceListId__c,
+                                                  Apttus_Config2__ShipToAccountId__c,
+                                                  Apttus_Config2__SoldToAccountId__c,
+                                                  Apttus_Config2__Source__c,
+                                                  Apttus_Config2__SourceChannel__c,
+                                                  Apttus_Config2__Type__c,
+                                                  Apttus_Config2__Description__c
+                                                  FROM Apttus_Config2__Order__c WHERE Id = :orderId LIMIT 1];
+
+        // Clone the existing order record
+        Apttus_Config2__Order__c newOrder = existingOrder.clone(false, false, false, false);
+		newOrder.Apttus_Config2__Type__c = 'Renewal';
+        newOrder.Apttus_Config2__Description__c = 'Renewal';
+        newOrder.Apttus_Config2__Source__c = 'Account';
+        
+        // Insert the new order record
+        insert newOrder;
+
+        return newOrder;
+    }
+}
+
+------------------------------------------------------
+------------------------------------------------------
+Another similar kind of use case to change the asset:
+
+Sample code:
+/************ Create Order -- Start *********************** **/
+// creates the order record
+ 
+Apttus_Config2.CPQStruct.CreateOrderRequestDO request = new Apttus_Config2.CPQStruct.CreateOrderRequestDO();
+id accountId = '0010v000009cSEN';
+    // Add request parameters    
+request.AccountId = accountId;
+request.PriceListId = 'aE80v000000002R';    
+request.PricingDate = Datetime.now();
+ 
+    // Create a new order   
+ Apttus_Config2.CPQStruct.CreateOrderResponseDO result = Apttus_Config2.OrderWebService.createOrder(request);
+ 
+    // Assign orderId to local variable   
+Id orderId = result.OrderSO.Id; 
+ 
+/************ Create Order -- End *********************** **/
+ 
+ 
+ 
+/************ Create Cart -- Start  *********************** **/
+//Creates the cart/Product Configuration record
+ 
+ID cartID = null;
+Apttus_Config2.CPQStruct.CreateCartResponseDO cartResult = null;
+Apttus_Config2.CPQStruct.CreateCartRequestDO cartRequest = new Apttus_Config2.CPQStruct.CreateCartRequestDO();
+cartRequest.OrderId = orderId;
+cartResult = Apttus_Config2.OrderWebService.createCart(cartRequest);    
+if(cartResult != null) {
+            cartID = cartResult.CartID;
+}
+ 
+/************ Create Cart -- End  *********************** **/
+ 
+ 
+ 
+/************ Change Asset  -- Start  *********************** **/
+//Fetch the asset lineitems that we want to amend. This is similar to going on the "installed products" page of the cart and selecting the asset
+ 
+List<Apttus_Config2__AssetLineItem__c> aliSOList = [select Id from 
+                                                                                                                                                                        Apttus_Config2__AssetLineItem__c where Apttus_Config2__AccountId__c = :accountID 
+                                                                                                                                                                        and Apttus_Config2__LineType__c = 'Product/Service' and Apttus_config2__IsPrimaryLine__c = true
+                                                                                                                                                                                    and Apttus_Config2__AssetStatus__c != 'Cancelled'
+                                                                                                                                                                                    ];
+Apttus_Config2.CPQStruct.ChangeAssetsRequestDO  changeAssetRequest = new Apttus_Config2.CPQStruct.ChangeAssetsRequestDO ();
+List<ID> listAssetId = new List<ID>();
+for(apttus_config2__assetlineitem__c aliSO : aliSOList) {
+            listAssetId.add(aliSO.ID);
+}
+                       
+changeAssetRequest.AssetIds = listAssetId;
+changeAssetRequest.CartId = cartID;
+                       
+Apttus_Config2.CPQStruct.ChangeAssetsResponseDO  changeAssetResponse = Apttus_Config2.AssetService.changeAssets(changeAssetRequest);
+ 
+// Note that the change asset lineitem will only create an instance of the Config2_Lineitem from the asset lineitem with Line Status as Amended
+// The Config2_lineItem can be fetched from the ChangeAssetsResponseDO
+// Any further modifications on the lineItem ex: QTY, price should be performed as a DML
+// update the lineItem
+           
+List<String> errorList  = changeAssetResponse.Errors;              
+system.debug('**errorList ' + errorList);
+ 
+ 
+/************ Change Asset  -- END  *********************** **/
+ 
+ 
+/************ Reprice cart  -- OPTIONAL -- Start   *********************** **/
+// we may not need to invoke this API as in our usecase the prices are finalized by the online sales application. 
+//Price Cart
+//Apttus_CPQApi.CPQ.UpdatePriceRequestDO priceReqDO = new Apttus_CPQApi.CPQ.UpdatePriceRequestDO();
+//priceReqDO.cartID = cartID;
+//Apttus_CPQApi.CPQ.UpdatePriceResponseDO priceRespDO = Apttus_CPQApi.CPQWebService.updatePriceForCart(priceReqDO);       
+//List<Decimal> complLineNums = priceRespDO.CompletedLineNumbers;
+//Boolean pricePending = priceRespDO.IsPricePending;
+//system.debug(pricePending);
+ 
+/************ Reprice cart  -- OPTIONAL -- End   *********************** **/
+ 
+ 
+ 
+/************ Synchronize Cart to create order line items -- Start  *********************** **/
+ 
+// this action is similar to finalizing a cart . In this case order lineitems get created from the Config2_lineItem
+Apttus_Config2.CPQStruct.SynchronizeCartRequestDO syncCartRequest = new Apttus_Config2.CPQStruct.SynchronizeCartRequestDO();
+syncCartRequest.CartID = cartID;
+Apttus_Config2.CPQStruct.SynchronizeCartResponseDO syncCartresp = Apttus_Config2.OrderWebService.synchronizeCart(syncCartrequest);
+ 
+/************ Synchronize Cart to create order line items -- END  *********************** **/
+ 
+ 
+ 
+/************ Accept Order -- Start  *********************** **/
+ 
+//Accept Order will update the asset line item to pending change
+Apttus_Config2.CPQStruct.AcceptOrderRequestDO acceptOrderRequest = new Apttus_Config2.CPQStruct.AcceptOrderRequestDO();
+acceptOrderRequest.OrderID = orderId;
+Apttus_Config2.CPQStruct.AcceptOrderResponseDO acceptOrderResponse = Apttus_Config2.OrderWebService.acceptOrder(acceptOrderRequest);
+system.debug(acceptOrderResponse);
+ 
+/************ Accept Order -- End  *********************** **/
+ 
+ 
+/************ Activate Order -- Start  *********************** **/
+ 
+//Populate the activation date on Order Line Item to activate the order and the asset line items
+List<Apttus_Config2__OrderLineItem__c> oliSOList = [select id from Apttus_Config2__OrderLineItem__c where Apttus_Config2__OrderId__c = :orderId];
+for(Apttus_Config2__OrderLineItem__c oliSO : oliSOlist) {
+            oliSO.Apttus_Config2__ActivatedDate__c = Date.today();
+}
+update oliSOList;
+ 
+/************ Activate Order -- End  *********************** **/
